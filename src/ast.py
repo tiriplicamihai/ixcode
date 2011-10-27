@@ -56,13 +56,37 @@ class Node:
             self.lout.append(A)
     
     def __str__(self):
-        return '%s %s %s' %(self.info, self.inp, self.out)
+        return '%s' % self.info
         #raise NotImplementedError()
 
     #def __repr__(self):
     #    return "-->" + self.__str__() + "<--" 
     __repr__ = __str__
-    
+
+    def accept(self, visitor):
+        return visitor.visit(self)
+
+###################################################
+
+class PrintVisitor():
+
+    """
+    Visitor Pattern for class Node. I'm not sure that's good
+    """
+    def __init__(self):
+        self.viz = []
+        self.lvl = 0
+
+
+    def visit(self, node):
+        print ' '*self.lvl, node.info
+        self.viz.append(node)
+        for next_node in node.lout:
+            if next_node not in self.viz:
+                self.lvl += 1
+                self.visit(next_node)
+                self.lvl -= 1
+
 
 class Block(Node):
     """

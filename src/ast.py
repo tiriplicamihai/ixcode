@@ -41,11 +41,28 @@ class Node:
     Base class for all nodes in AST. All methods raise exceptions to ensure
     proper derivation.
     """
-    def __str__(self):
-        raise NotImplementedError()
 
-    def __repr__(self):
-        return "-->" + self.__str__() + "<--"
+    def __init__(self, info):
+        self.lin = []
+        self.lout = []
+        self.info = info
+
+    def _add_p(self, A):
+        if A not in self.lin:
+            self.lin.append(A)
+
+    def _add_c(self, A):
+        if A not in self.lout:
+            self.lout.append(A)
+    
+    def __str__(self):
+        return '%s %s %s' %(self.info, self.inp, self.out)
+        #raise NotImplementedError()
+
+    #def __repr__(self):
+    #    return "-->" + self.__str__() + "<--" 
+    __repr__ = __str__
+    
 
 class Block(Node):
     """

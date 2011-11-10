@@ -15,6 +15,18 @@ def fix(string):
     string = string.replace('"', '\\"')
     return string
 
+class Visitor_BB:
+    def __init__(self):
+        print 'digraph{'
+        self.selected = []
+
+    def __call__(self, bb):
+        self.selected.append(bb)
+        for block in bb.lout:
+            if block not in self.selected:
+                print "\t%d -> %d;" % (bb.bid, block.bid)
+                self(block)
+
 class BB:
     """
     A basic block. To be displayed by itself in the diagram.
@@ -28,7 +40,23 @@ class BB:
             BB.__bid__ += 1
         self._leader = None
         self._instrs = []
+        self.lout = []
 
+    def _add_c(self, block):
+        if block not in self.lout:
+            self.lout.append(block)
+
+    def link(self, block):
+       self._add_c(block)
+
+    def __str__(self):
+        print "%s: [%s]" % (self.bid, self.lout)
+
+    __repr__ = __str__ 
+
+    def accept(self,visitor):
+        return visitor(self)
+    
     def build_new_BB(klass, blocks):
         new_block = BB()
         blocks[new_block.bid] = new_block
@@ -383,7 +411,6 @@ def dot(fcts, opts):
         b = blocks[START].build_new_BB(blocks)
         b.set_istream2(blocks, leaders, links, block.instrs(), blocks[START],
                 blocks[END], blocks[START], blocks[END])
-
 #        cleanup(blocks, links)
 
         s = build_dot_string(blocks, links)
@@ -394,4 +421,17 @@ def dot(fcts, opts):
         with open(filename, 'w') as f:
             f.write(s)
         os.system('dot -Tpng %s > %s/%s.png' % (filename, opts.outdir, fname))
+
+def main():
+    bb1 = BB()
+    bb2 = BB()
+    bb3 = BB()
+    bb4 = BB()
+    bb1.link(bb2)
+    bb2.link(bb3)
+    bb1.link(bb4)
+    bb1.accept(Visitor_BB())
+    
+if __name__ == "__main__":
+    main()
 

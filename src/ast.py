@@ -107,6 +107,13 @@ class Block(Node):
     def __str__(self):
         return "<block> {...}"
 
+    def visit(self, visitor):
+        ret = None
+        for i in self.instructions:
+            ret = i.visit(visitor)
+        return ret
+
+
 class Function(Node):
     """
     A function.
@@ -133,6 +140,9 @@ class Function(Node):
             return self._block.block()
         return self._block
 
+    def visit(self, visitor):
+        return self._block.visit(visitor)
+
 class TextNode(Node):
     """
     A node containing a text describing the corresponding instruction.
@@ -142,6 +152,9 @@ class TextNode(Node):
 
     def __str__(self):
         return self._text
+
+    def visit(self, visitor):
+        pass
 
 class Expression(TextNode):
     """
@@ -253,6 +266,9 @@ class BreakInstruction(Instruction):
     def is_break(self):
         return True
 
+    def visit(self, visitor):
+        pass
+
 class ContinueInstruction(Instruction):
     """
     A continue instruction.
@@ -329,6 +345,9 @@ class MacroLoopInstruction(ForInstruction):
     def link_blocks(self, header, exit, links):
         links[(header.bid, exit.bid)] = 'else'
         links[(exit.bid, header.bid)] = '%s' % self._header
+
+    def visit(self, visitor):
+        return self._block.visit(visitor)
 
 class WhileInstruction(Instruction):
     """

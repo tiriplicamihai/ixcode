@@ -15,18 +15,6 @@ def fix(string):
     string = string.replace('"', '\\"')
     return string
 
-class Visitor_BB:
-    def __init__(self):
-        print 'digraph{'
-        self.selected = []
-
-    def __call__(self, bb):
-        self.selected.append(bb)
-        for block in bb.lout:
-            if block not in self.selected:
-                print "\t%d -> %d;" % (bb.bid, block.bid)
-                self(block)
-
 class BB:
     """
     A basic block. To be displayed by itself in the diagram.
@@ -40,23 +28,9 @@ class BB:
             BB.__bid__ += 1
         self._leader = None
         self._instrs = []
-        self.lout = []
+        self._lout = []
+        self._ignore = False
 
-    def _add_c(self, block):
-        if block not in self.lout:
-            self.lout.append(block)
-
-    def link(self, block):
-       self._add_c(block)
-
-    def __str__(self):
-        print "%s: [%s]" % (self.bid, self.lout)
-
-    __repr__ = __str__ 
-
-    def accept(self,visitor):
-        return visitor(self)
-    
     def build_new_BB(klass, blocks):
         new_block = BB()
         blocks[new_block.bid] = new_block
@@ -256,6 +230,7 @@ class BB:
             return True
         return False # TODO: really?
 
+
     def description(self):
         s = ''
         if not self._instrs:
@@ -269,11 +244,32 @@ class BB:
             s += '%s\\n' % fix('%s' % i)
         return s
 
+    def get_link_list(self):
+        return self._lout
+
+    def is_ignored(self):
+        return self._ignore
+
+    def set_ignore(self):
+        self._ignore = True
+
+    def add_link(self, node):
+        self._lout.append(node)
+
+    def add_instruction(self, i):
+        self._instrs.append(i)
+
+    def add_leader(self, l):
+        self._leader = l
+
     def empty(self):
         return self._instrs == [] and self.bid >= 0
 
     def instrs(self):
         return self._instrs
+
+    def visit (self, visitor):
+        return visitor (self)
 
     def __str__(self):
         return '(%d)%s: [%s]' % (self.bid, self._leader, self._instrs)
@@ -387,6 +383,10 @@ def cleanup(blocks, links):
                 del links[(b, ob)]
         change = to_del != []
 
+class AstFunctionVisitor:
+    def __call__(self, instr):
+        print instr.__str__()
+
 def dot(fcts, opts):
     """
     Transform each function to the graphical representation.
@@ -403,6 +403,9 @@ def dot(fcts, opts):
         leaders = {}
         get_leaders(block, leaders)
 
+        import pdb
+#        pdb.set_trace()
+#        frepr.visit(AstFunctionVisitor())
         # get BBs
         blocks = {START:BB(START), END:BB(END)}
         links = {}
@@ -411,6 +414,7 @@ def dot(fcts, opts):
         b = blocks[START].build_new_BB(blocks)
         b.set_istream2(blocks, leaders, links, block.instrs(), blocks[START],
                 blocks[END], blocks[START], blocks[END])
+
 #        cleanup(blocks, links)
 
         s = build_dot_string(blocks, links)
@@ -422,16 +426,88 @@ def dot(fcts, opts):
             f.write(s)
         os.system('dot -Tpng %s > %s/%s.png' % (filename, opts.outdir, fname))
 
-def main():
-    bb1 = BB()
-    bb2 = BB()
-    bb3 = BB()
-    bb4 = BB()
-    bb1.link(bb2)
-    bb2.link(bb3)
-    bb1.link(bb4)
-    bb1.accept(Visitor_BB())
-    
-if __name__ == "__main__":
-    main()
+#        pdb.set_trace()
 
+        firstBB = BB()
+        startBB = BB(START)
+        startBB.add_instruction('START')
+        endBB = BB(END)
+        endBB.add_instruction('END')
+        blocks = [startBB, firstBB, endBB]
+
+        lastBB = frepr.toBB(blocks, firstBB)
+
+        startBB.add_link(firstBB)
+        if not endBB in lastBB.get_link_list():
+            lastBB.add_link(endBB)
+
+        blocks[0].visit(DotVisitor())
+
+
+class BBVisitor:
+
+    def __init__(self):
+        self.viz = []
+        self.lvl = 0
+
+    def __call__(self, node):
+
+        print '\t' * self.lvl + node.bid.__str__()
+        print '\t' * self.lvl + node.get_link_list().__str__()
+        print '\t' * self.lvl + node._instrs.__str__()
+
+        self.viz.append(node)
+
+        for next_node in node.get_link_list():
+            if next_node not in self.viz:
+                self.lvl += 1
+                self(next_node)
+                self.lvl -= 1
+
+class DotVisitor:
+
+    def __init__(self):
+        self.g = open('test.dot', 'w')
+        self.g.write('digraph {\n')
+        self.lvl = 0
+        self.viz = []
+        self.description = ''
+
+    def __call__(self, node):
+        self.viz.append(node)
+        self.description += '\t%d [label=\"%s\"' % (node.bid, \
+                fix('%s' % node.instrs()))
+        if not node.instrs() or node.instrs()[0].__repr__() == '-->_POINT_<--':
+            self.description += ', shape=\"point\"'
+        self.description += '];\n'
+
+        for next_node in node.get_link_list():
+            self.g.write('\t' + node.bid.__str__() + ' -> ' + \
+                    next_node.bid.__str__() + ';\n')
+            if next_node not in self.viz:
+                self.lvl += 1
+                self(next_node)
+                self.lvl -= 1
+
+        if  self.lvl == 0:
+            self.g.write(self.description)
+            self.g.write('}')
+            self.g.close()
+
+def main():
+
+    b1 = BB()
+    b2 = BB()
+    b3 = BB()
+    b4 = BB()
+
+    b1.add_link(b2)
+    b1.add_link(b4)
+    b1.add_link(b3)
+    b2.add_link(b4)
+    b4.add_link(b1)
+#    b1.visit(BBVisitor())
+    b1.visit(DotVisitor())
+
+if __name__ == "__main__":
+    main ()

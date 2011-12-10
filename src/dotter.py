@@ -30,6 +30,7 @@ class BB:
         self._instrs = []
         self._lout = []
         self._ignore = False
+        self._lin = []
 
     def build_new_BB(klass, blocks):
         new_block = BB()
@@ -247,6 +248,14 @@ class BB:
     def get_link_list(self):
         return self._lout
 
+    def remove_links(self):
+        self._lout = []
+
+    def first_instr(self):
+        if not self.instrs():
+            return None
+        return self._instrs[0]
+
     def is_ignored(self):
         return self._ignore
 
@@ -255,6 +264,7 @@ class BB:
 
     def add_link(self, node):
         self._lout.append(node)
+        node._lin.append(self)
 
     def add_instruction(self, i):
         self._instrs.append(i)
@@ -403,7 +413,7 @@ def dot(fcts, opts):
         leaders = {}
         get_leaders(block, leaders)
 
-        import pdb
+#        import pdb
 #        pdb.set_trace()
 #        frepr.visit(AstFunctionVisitor())
         # get BBs
@@ -428,21 +438,50 @@ def dot(fcts, opts):
 
 #        pdb.set_trace()
 
-        firstBB = BB()
-        startBB = BB(START)
-        startBB.add_instruction('START')
-        endBB = BB(END)
-        endBB.add_instruction('END')
-        blocks = [startBB, firstBB, endBB]
+#        firstBB = BB()
+#        startBB = BB(START)
+#        loopBB = BB()
+#        startBB.add_instruction('START')
+#        endBB = BB(END)
+#        endBB.add_instruction('END')
+#        blocks = [startBB, firstBB, endBB]
 
-        lastBB = frepr.toBB(blocks, firstBB)
+        import ast
+        Labellist = {}
 
-        startBB.add_link(firstBB)
-        if not endBB in lastBB.get_link_list():
-            lastBB.add_link(endBB)
+        firstBB = ast.LabelInstruction('%s' % 'START').toBB(Labellist, BB())
+        lastBB = frepr.toBB(Labellist, firstBB)
+        ast.LabelInstruction('%s' % 'END').toBB(Labellist, lastBB)
+#        blocks[0].visit(DotVisitor())
+        Labellist['END'].remove_links()
 
-        blocks[0].visit(DotVisitor())
+        link_labels(Labellist['START'], Labellist, [], None)
+        Labellist['START'].visit(DotVisitor())
 
+
+def link_labels(node, labels, viz, last_loop):
+    viz.append(node)
+    i = node.first_instr()
+    if i and i.is_instr() and i.is_loop():
+        last_loop = node
+    for next_node in node.get_link_list():
+        if next_node not in viz:
+            link_labels(next_node, labels, viz, last_loop)
+
+    if i and i.is_instr():
+        if i.is_goto():
+            node.remove_links()
+            node.add_link(labels[i.label()])
+        if i.is_return():
+            node.remove_links()
+            node.add_link(labels['END'])
+        if i.is_continue():
+            node.remove_links()
+            node.add_link(last_loop)
+        if i.is_break():
+            last = labels[last_loop]
+            node.remove_links()
+            node.add_link(last)
 
 class BBVisitor:
 
@@ -477,7 +516,7 @@ class DotVisitor:
         self.viz.append(node)
         self.description += '\t%d [label=\"%s\"' % (node.bid, \
                 fix('%s' % node.instrs()))
-        if not node.instrs() or node.instrs()[0].__repr__() == '-->_POINT_<--':
+        if not node.instrs() or node.instrs()[0].is_point():
             self.description += ', shape=\"point\"'
         self.description += '];\n'
 
@@ -509,5 +548,5 @@ def main():
 #    b1.visit(BBVisitor())
     b1.visit(DotVisitor())
 
-if __name__ == "__main__":
-    main ()
+#if __name__ == "__main__":
+#    main ()
